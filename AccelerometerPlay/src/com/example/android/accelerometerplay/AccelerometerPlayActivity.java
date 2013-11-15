@@ -111,7 +111,7 @@ public class AccelerometerPlayActivity extends Activity {
 
     class SimulationView extends View implements SensorEventListener {
         // diameter of the balls in meters
-        private static final float sBallDiameter = 0.004f;
+        private static final float sBallDiameter = 0.01f;
         private static final float sBallDiameter2 = sBallDiameter * sBallDiameter;
 
         // friction of the virtual table and air
@@ -223,7 +223,7 @@ public class AccelerometerPlayActivity extends Activity {
          * A particle system is just a collection of particles
          */
         class ParticleSystem {
-            static final int NUM_PARTICLES = 15;
+            static final int NUM_PARTICLES = 1;
             private Particle mBalls[] = new Particle[NUM_PARTICLES];
 
             ParticleSystem() {
@@ -361,7 +361,7 @@ public class AccelerometerPlayActivity extends Activity {
             Options opts = new Options();
             opts.inDither = true;
             opts.inPreferredConfig = Bitmap.Config.RGB_565;
-            mWood = BitmapFactory.decodeResource(getResources(), R.drawable.wood, opts);
+            mWood = BitmapFactory.decodeResource(getResources(), R.drawable.space, opts);
         }
 
         @Override
