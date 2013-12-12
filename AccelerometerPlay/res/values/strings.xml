@@ -16,4 +16,5 @@
 
 <resources>
     <string name="app_name">AccelerometerPlay</string>
+    <string name="self_destruct">Booms</string>
 </resources>

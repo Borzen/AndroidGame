@@ -31,9 +31,12 @@ import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.util.DisplayMetrics;
 import android.view.Display;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.Button;
 
 /**
  * This is an example of using the accelerometer to integrate the device's
@@ -55,7 +58,7 @@ public class AccelerometerPlayActivity extends Activity {
     private WindowManager mWindowManager;
     private Display mDisplay;
     private WakeLock mWakeLock;
-
+    private Button button;
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -78,8 +81,9 @@ public class AccelerometerPlayActivity extends Activity {
         // instantiate our simulation view and set it as the activity's content
         mSimulationView = new SimulationView(this);
         setContentView(mSimulationView);
+        
     }
-
+    
     @Override
     protected void onResume() {
         super.onResume();
@@ -94,6 +98,29 @@ public class AccelerometerPlayActivity extends Activity {
         mSimulationView.startSimulation();
     }
 
+    @Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		//getMenuInflater().inflate(R.menu.accelerometer_play, menu);
+		menu.add("New Game");
+		menu.add("Exit");
+		
+		return true;
+	}
+    
+    @Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		
+	    if(item.getTitle().equals("New Game")){
+	    		this.recreate();
+	    }
+	    else if(item.getTitle().equals("Exit")){
+	    	this.finish();
+	    }
+	
+		return true;
+	}
+    
     @Override
     protected void onPause() {
         super.onPause();
@@ -111,7 +138,7 @@ public class AccelerometerPlayActivity extends Activity {
 
     class SimulationView extends View implements SensorEventListener {
         // diameter of the balls in meters
-        private static final float sBallDiameter = 0.004f;
+        private static final float sBallDiameter = 0.01f;
         private static final float sBallDiameter2 = sBallDiameter * sBallDiameter;
 
         // friction of the virtual table and air
@@ -126,7 +153,7 @@ public class AccelerometerPlayActivity extends Activity {
         private float mMetersToPixelsX;
         private float mMetersToPixelsY;
         private Bitmap mBitmap;
-        private Bitmap mWood;
+        //private Bitmap mWood;
         private float mXOrigin;
         private float mYOrigin;
         private float mSensorX;
@@ -150,14 +177,24 @@ public class AccelerometerPlayActivity extends Activity {
             private float mLastPosX;
             private float mLastPosY;
             private float mOneMinusFriction;
-
+            public boolean movable;
+            public boolean visible;
+            public int following;
+            
+            private float lastSafeX;
+            private float lastSafeY;
+            
             Particle() {
                 // make each particle a bit different by randomizing its
                 // coefficient of friction
                 final float r = ((float) Math.random() - 0.5f) * 0.2f;
                 mOneMinusFriction = 1.0f - sFriction + r;
+                movable=false;
+                visible = false;
             }
-
+            
+            
+            
             public void computePhysics(float sx, float sy, float dT, float dTC) {
                 // Force of gravity applied to our virtual object
                 final float m = 1000.0f; // mass of our virtual object
@@ -187,10 +224,21 @@ public class AccelerometerPlayActivity extends Activity {
                         * dTdT;
                 final float y = mPosY + mOneMinusFriction * dTC * (mPosY - mLastPosY) + mAccelY
                         * dTdT;
+                
+                
                 mLastPosX = mPosX;
                 mLastPosY = mPosY;
                 mPosX = x;
                 mPosY = y;
+                
+                if(((mLastPosX - lastSafeX)*(mLastPosX - lastSafeX)
+                		+(mLastPosY - lastSafeY)*(mLastPosY - lastSafeY) )
+                		> sBallDiameter2*2)
+                {
+                	lastSafeX = mLastPosX;
+                	lastSafeY = mLastPosY;
+                }
+                
                 mAccelX = ax;
                 mAccelY = ay;
             }
@@ -223,18 +271,34 @@ public class AccelerometerPlayActivity extends Activity {
          * A particle system is just a collection of particles
          */
         class ParticleSystem {
-            static final int NUM_PARTICLES = 15;
+            static final int NUM_PARTICLES = 50;
             private Particle mBalls[] = new Particle[NUM_PARTICLES];
-
+            private Particle playerBall = new Particle();
+            private int visCount=0;
+            
             ParticleSystem() {
                 /*
                  * Initially our particles have no speed or acceleration
                  */
+            	playerBall.mPosX=-15;
+            	playerBall.mPosY=15;
+            	
                 for (int i = 0; i < mBalls.length; i++) {
                     mBalls[i] = new Particle();
+                    mBalls[i].mPosX= (float)(Math.random()-0.5f)*0.2f;
+                    mBalls[i].mPosY=(float)(Math.random()-0.5f)*0.2f;
+                    mBalls[i].following = i-1;
                 }
+                mBalls[0].visible=true;
             }
-
+            
+            private Particle getFollowing(int i)
+            {
+            	if(i<0)
+        			return playerBall;
+            	
+            	return mBalls[i];
+            }
             /*
              * Update the position of each particle in the system using the
              * Verlet integrator.
@@ -246,9 +310,23 @@ public class AccelerometerPlayActivity extends Activity {
                     if (mLastDeltaT != 0) {
                         final float dTC = dT / mLastDeltaT;
                         final int count = mBalls.length;
+                        playerBall.computePhysics(sx, sy, dT, dTC);
+                        
                         for (int i = 0; i < count; i++) {
                             Particle ball = mBalls[i];
-                            ball.computePhysics(sx, sy, dT, dTC);
+                            if(ball.movable)
+                            {
+                            	//ball.computePhysics(sx, sy, dT, dTC);
+                            	if(ball.mPosX != getFollowing(ball.following).lastSafeX ||
+                            			ball.mPosY != getFollowing(ball.following).lastSafeY)
+                            	{
+                            		ball.lastSafeX = ball.mPosX;
+                            		ball.lastSafeY = ball.mPosY;
+                            	
+                            		ball.mPosX = getFollowing(ball.following).lastSafeX;
+                            		ball.mPosY = getFollowing(ball.following).lastSafeY;
+                            	}
+                            }
                         }
                     }
                     mLastDeltaT = dT;
@@ -280,8 +358,16 @@ public class AccelerometerPlayActivity extends Activity {
                     more = false;
                     for (int i = 0; i < count; i++) {
                         Particle curr = mBalls[i];
+                        
+                        if(!curr.visible)
+                    		continue;
+                        
+                        
                         for (int j = i + 1; j < count; j++) {
                             Particle ball = mBalls[j];
+                            if(!ball.visible)
+                        		continue;
+                            
                             float dx = ball.mPosX - curr.mPosX;
                             float dy = ball.mPosY - curr.mPosY;
                             float dd = dx * dx + dy * dy;
@@ -297,24 +383,100 @@ public class AccelerometerPlayActivity extends Activity {
                                 // simulate the spring
                                 final float d = (float) Math.sqrt(dd);
                                 final float c = (0.5f * (sBallDiameter - d)) / d;
-                                curr.mPosX -= dx * c;
-                                curr.mPosY -= dy * c;
-                                ball.mPosX += dx * c;
+                                curr.mPosX -= 2*dx * c;
+                                curr.mPosY -= 2*dy * c;
+                                getFollowing(curr.following).lastSafeX -= 2*dx*c;
+                                getFollowing(curr.following).lastSafeY -= 2*dy*c;
+                                
+                                /*ball.mPosX += dx * c;
                                 ball.mPosY += dy * c;
+                                getFollowing(ball.following).lastSafeX+=dx*c;
+                                getFollowing(ball.following).lastSafeY += dy*c;*/
                                 more = true;
                             }
                         }
+                        //check against player ball
+                        {
+                            Particle ball = playerBall;
+                            float dx = ball.mPosX - curr.mPosX;
+                            float dy = ball.mPosY - curr.mPosY;
+                            float dd = dx * dx + dy * dy;
+                            // Check for collisions
+                            if (dd <= sBallDiameter2) {
+                                /*
+                                 * add a little bit of entropy, after nothing is
+                                 * perfect in the universe.
+                                 */
+                                dx += ((float) Math.random() - 0.5f) * 0.0001f;
+                                dy += ((float) Math.random() - 0.5f) * 0.0001f;
+                                dd = dx * dx + dy * dy;
+                                // simulate the spring
+                                final float d = (float) Math.sqrt(dd);
+                                final float c = (0.5f * (sBallDiameter - d)) / d;
+                               if(i==0)
+                               {
+                                curr.mPosX -= 2*dx * c;
+                                curr.mPosY -= 2*dy * c;
+                                getFollowing(curr.following).lastSafeX -= 2*dx*c;
+                                getFollowing(curr.following).lastSafeY -= 2*dy*c;
+                               }  
+                               else if(curr.movable)
+                               {
+                            	   ball.mPosX += dx * c;
+                            	   ball.mPosY += dy * c;
+                               }
+                                
+                                if(!curr.movable)
+                                {
+                                	curr.movable=true;
+                                	curr.mPosX = getFollowing(curr.following).lastSafeX;
+                                	curr.mPosY = getFollowing(curr.following).lastSafeY;
+                                	
+                                	visCount++;
+                                	if(visCount<mBalls.length)
+                                	{
+                                		 curr.mPosX -= 2*dx * c;
+                                         curr.mPosY -= 2*dy * c;
+                                         getFollowing(curr.following).lastSafeX -= 2*dx*c;
+                                         getFollowing(curr.following).lastSafeY -= 2*dy*c;
+                                		mBalls[visCount].visible=true;
+                                	}
+                                }
+                                
+                                more = true;
+                            }
+                        }
+                        
                         /*
                          * Finally make sure the particle doesn't intersects
                          * with the walls.
                          */
                         curr.resolveCollisionWithBounds();
+                        getFollowing(curr.following).lastSafeX =curr.mPosX;
+                        getFollowing(curr.following).lastSafeY =curr.mPosY;
                     }
+                    playerBall.resolveCollisionWithBounds();
                 }
             }
 
+            public float getPlayerPosX()
+            {
+            	return playerBall.mPosX;
+            }
+            
+            public float getPlayerPosY()
+            {
+            	return playerBall.mPosY;
+            }
+            
+            
             public int getParticleCount() {
                 return mBalls.length;
+            }
+            
+            public boolean isVisible(int i)
+            {
+            	return mBalls[i].visible;
             }
 
             public float getPosX(int i) {
@@ -323,6 +485,16 @@ public class AccelerometerPlayActivity extends Activity {
 
             public float getPosY(int i) {
                 return mBalls[i].mPosY;
+            }
+            
+            public float getSafeX(int i)
+            {
+            	return mBalls[i].lastSafeX;
+            }
+            
+            public float getSafeY(int i)
+            {
+            	return mBalls[i].lastSafeY;
             }
         }
 
@@ -361,7 +533,7 @@ public class AccelerometerPlayActivity extends Activity {
             Options opts = new Options();
             opts.inDither = true;
             opts.inPreferredConfig = Bitmap.Config.RGB_565;
-            mWood = BitmapFactory.decodeResource(getResources(), R.drawable.wood, opts);
+           // mWood = BitmapFactory.decodeResource(getResources(), R.drawable.wood, opts);
         }
 
         @Override
@@ -417,7 +589,7 @@ public class AccelerometerPlayActivity extends Activity {
              * draw the background
              */
 
-            canvas.drawBitmap(mWood, 0, 0, null);
+            //canvas.drawBitmap(mWood, 0, 0, null);
 
             /*
              * compute the new position of our object, based on accelerometer
@@ -444,8 +616,18 @@ public class AccelerometerPlayActivity extends Activity {
                  * of the screen and the unit is the meter.
                  */
 
+            	if(!particleSystem.isVisible(i))
+            		continue;
+            	
                 final float x = xc + particleSystem.getPosX(i) * xs;
                 final float y = yc - particleSystem.getPosY(i) * ys;
+                canvas.drawBitmap(bitmap, x, y, null);
+            }
+            
+            //Draw Player
+            {
+            	final float x = xc + particleSystem.getPlayerPosX() * xs;
+                final float y = yc - particleSystem.getPlayerPosY() * ys;
                 canvas.drawBitmap(bitmap, x, y, null);
             }
 
