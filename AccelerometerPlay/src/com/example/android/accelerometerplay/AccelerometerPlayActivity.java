@@ -17,7 +17,9 @@
 package com.example.android.accelerometerplay;
 
 import android.app.Activity;
+import android.app.Service;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -58,7 +60,8 @@ public class AccelerometerPlayActivity extends Activity {
     private WindowManager mWindowManager;
     private Display mDisplay;
     private WakeLock mWakeLock;
-    private Button button;
+    private Intent intent;
+    
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -81,7 +84,8 @@ public class AccelerometerPlayActivity extends Activity {
         // instantiate our simulation view and set it as the activity's content
         mSimulationView = new SimulationView(this);
         setContentView(mSimulationView);
-        
+        intent = new Intent(this,TimingService.class);
+        startService(intent);
     }
     
     @Override
@@ -115,6 +119,7 @@ public class AccelerometerPlayActivity extends Activity {
 	    		this.recreate();
 	    }
 	    else if(item.getTitle().equals("Exit")){
+	    	stopService(intent);
 	    	this.finish();
 	    }
 	
@@ -511,6 +516,7 @@ public class AccelerometerPlayActivity extends Activity {
 
         public void stopSimulation() {
             mSensorManager.unregisterListener(this);
+            stopService(intent);
         }
 
         public SimulationView(Context context) {
@@ -595,7 +601,7 @@ public class AccelerometerPlayActivity extends Activity {
              * compute the new position of our object, based on accelerometer
              * data and present time.
              */
-
+        	
             final ParticleSystem particleSystem = mParticleSystem;
             final long now = mSensorTimeStamp + (System.nanoTime() - mCpuTimeStamp);
             final float sx = mSensorX;
